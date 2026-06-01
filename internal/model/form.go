@@ -29,7 +29,7 @@ type FormSection struct {
 type Form struct {
 	ID          string     `json:"id"`
 	OwnerID     string     `json:"ownerId"`
-	OwnerName   string     `json:"ownerName"`
+	FormName    string     `json:"formName"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Status      FormStatus `json:"status"`
@@ -67,7 +67,7 @@ type SectionInput struct {
 type FormRequest struct {
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
-	OwnerName   string     `json:"ownerName"`
+	FormName    string     `json:"formName"`
 	Status      FormStatus `json:"status"`
 
 	StartsAt  *time.Time `json:"startsAt,omitempty"`

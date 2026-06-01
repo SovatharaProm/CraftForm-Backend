@@ -152,14 +152,14 @@ func (r *FormRepo) Create(ctx context.Context, ownerID string, req model.FormReq
 
 	var formID string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO forms (owner_id, owner_name, title, description, status,
+		INSERT INTO forms (owner_id, form_name, title, description, status,
 		    starts_at, expires_at, max_responses,
 		    limit_one_per_user, require_login, collect_email,
 		    shuffle_questions, shuffle_options, show_individual_responses, quiz_enabled,
 		    thank_you_message, theme)
 		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		RETURNING id::text
-	`, ownerID, req.OwnerName, req.Title, req.Description, string(req.Status),
+	`, ownerID, req.FormName, req.Title, req.Description, string(req.Status),
 		req.StartsAt, req.ExpiresAt, req.MaxResponses,
 		req.LimitOnePerUser, req.RequireLogin, req.CollectEmail,
 		req.ShuffleQuestions, req.ShuffleOptions, req.ShowIndividualResponses, req.QuizEnabled,
@@ -189,13 +189,13 @@ func (r *FormRepo) Update(ctx context.Context, id string, req model.FormRequest)
 
 	_, err = tx.Exec(ctx, `
 		UPDATE forms SET
-		    owner_name=$1, title=$2, description=$3, status=$4,
+		    form_name=$1, title=$2, description=$3, status=$4,
 		    starts_at=$5, expires_at=$6, max_responses=$7,
 		    limit_one_per_user=$8, require_login=$9, collect_email=$10,
 		    shuffle_questions=$11, shuffle_options=$12, show_individual_responses=$13, quiz_enabled=$14,
 		    thank_you_message=$15, theme=$16, updated_at=NOW()
 		WHERE id=$17::uuid
-	`, req.OwnerName, req.Title, req.Description, string(req.Status),
+	`, req.FormName, req.Title, req.Description, string(req.Status),
 		req.StartsAt, req.ExpiresAt, req.MaxResponses,
 		req.LimitOnePerUser, req.RequireLogin, req.CollectEmail,
 		req.ShuffleQuestions, req.ShuffleOptions, req.ShowIndividualResponses, req.QuizEnabled,
@@ -228,7 +228,7 @@ func (r *FormRepo) Duplicate(ctx context.Context, id, ownerID string) (*model.Fo
 		return nil, err
 	}
 	req := model.FormRequest{
-		OwnerName:               src.OwnerName,
+		FormName:                src.FormName,
 		Title:                   "Copy of " + src.Title,
 		Description:             src.Description,
 		Status:                  model.FormStatusDraft,
@@ -466,7 +466,7 @@ func (r *FormRepo) loadSections(ctx context.Context, f *model.Form) error {
 func formCols(alias string) string {
 	a := alias + "."
 	return fmt.Sprintf(`
-		%sid::text, %sowner_id::text, %sowner_name, %stitle, %sdescription, %sstatus,
+		%sid::text, %sowner_id::text, %sform_name, %stitle, %sdescription, %sstatus,
 		%sstarts_at, %sexpires_at, %smax_responses,
 		%slimit_one_per_user, %srequire_login, %scollect_email,
 		%sshuffle_questions, %sshuffle_options, %sshow_individual_responses, %squiz_enabled,
@@ -481,7 +481,7 @@ func scanForm(row scanner) (*model.Form, error) {
 	var f model.Form
 	var themeJSON []byte
 	if err := row.Scan(
-		&f.ID, &f.OwnerID, &f.OwnerName, &f.Title, &f.Description, &f.Status,
+		&f.ID, &f.OwnerID, &f.FormName, &f.Title, &f.Description, &f.Status,
 		&f.StartsAt, &f.ExpiresAt, &f.MaxResponses,
 		&f.LimitOnePerUser, &f.RequireLogin, &f.CollectEmail,
 		&f.ShuffleQuestions, &f.ShuffleOptions, &f.ShowIndividualResponses, &f.QuizEnabled,
@@ -501,7 +501,7 @@ func scanFormWithCount(row scanner) (*model.Form, error) {
 	var f model.Form
 	var themeJSON []byte
 	if err := row.Scan(
-		&f.ID, &f.OwnerID, &f.OwnerName, &f.Title, &f.Description, &f.Status,
+		&f.ID, &f.OwnerID, &f.FormName, &f.Title, &f.Description, &f.Status,
 		&f.StartsAt, &f.ExpiresAt, &f.MaxResponses,
 		&f.LimitOnePerUser, &f.RequireLogin, &f.CollectEmail,
 		&f.ShuffleQuestions, &f.ShuffleOptions, &f.ShowIndividualResponses, &f.QuizEnabled,
