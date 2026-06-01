@@ -29,6 +29,7 @@ type FormSection struct {
 type Form struct {
 	ID          string     `json:"id"`
 	OwnerID     string     `json:"ownerId"`
+	OwnerName   string     `json:"ownerName"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Status      FormStatus `json:"status"`
@@ -49,13 +50,12 @@ type Form struct {
 	ThankYouMessage string `json:"thankYouMessage,omitempty"`
 	Theme           Theme  `json:"theme"`
 
-	Sections  []FormSection `json:"sections"`
-	CreatedAt time.Time     `json:"createdAt"`
-	UpdatedAt time.Time     `json:"updatedAt"`
+	ResponseCount int           `json:"responseCount"`
+	Sections      []FormSection `json:"sections"`
+	CreatedAt     time.Time     `json:"createdAt"`
+	UpdatedAt     time.Time     `json:"updatedAt"`
 }
 
-// SectionInput holds a section payload from the frontend.
-// ClientID is the frontend-generated ID used to resolve cross-section branching.
 type SectionInput struct {
 	ClientID    string          `json:"id"`
 	Title       string          `json:"title"`
@@ -64,10 +64,10 @@ type SectionInput struct {
 	Questions   []QuestionInput `json:"questions"`
 }
 
-// FormRequest is shared for both create and update.
 type FormRequest struct {
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
+	OwnerName   string     `json:"ownerName"`
 	Status      FormStatus `json:"status"`
 
 	StartsAt  *time.Time `json:"startsAt,omitempty"`
@@ -86,4 +86,10 @@ type FormRequest struct {
 	ThankYouMessage string         `json:"thankYouMessage"`
 	Theme           Theme          `json:"theme"`
 	Sections        []SectionInput `json:"sections"`
+}
+
+type FormFilter struct {
+	Query  string // search by title
+	Status string // draft | active | closed | "" (all)
+	Sort   string // newest | oldest | most_responses | title
 }

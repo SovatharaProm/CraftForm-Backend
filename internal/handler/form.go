@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -18,15 +17,31 @@ func NewFormHandler(svc *service.FormService) *FormHandler {
 	return &FormHandler{svc: svc}
 }
 
+// List — GET /api/forms?q=&status=&sort= (owner)
 func (h *FormHandler) List(c echo.Context) error {
 	userID := middleware.GetUserID(c)
-	forms, err := h.svc.List(c.Request().Context(), userID)
+	filter := model.FormFilter{
+		Query:  c.QueryParam("q"),
+		Status: c.QueryParam("status"),
+		Sort:   c.QueryParam("sort"),
+	}
+	forms, err := h.svc.List(c.Request().Context(), userID, filter)
 	if err != nil {
 		return respondErr(c, err)
 	}
 	return c.JSON(http.StatusOK, forms)
 }
 
+// ListPublic — GET /api/forms/public?q= (no auth)
+func (h *FormHandler) ListPublic(c echo.Context) error {
+	forms, err := h.svc.ListPublic(c.Request().Context(), c.QueryParam("q"))
+	if err != nil {
+		return respondErr(c, err)
+	}
+	return c.JSON(http.StatusOK, forms)
+}
+
+// Create — POST /api/forms (owner)
 func (h *FormHandler) Create(c echo.Context) error {
 	userID := middleware.GetUserID(c)
 	var req model.FormRequest
@@ -40,8 +55,9 @@ func (h *FormHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, form)
 }
 
+// GetByID — GET /api/forms/:id (optional auth)
 func (h *FormHandler) GetByID(c echo.Context) error {
-	requesterID := middleware.GetUserID(c) // may be empty for public forms
+	requesterID := middleware.GetUserID(c)
 	form, err := h.svc.GetByID(c.Request().Context(), c.Param("id"), requesterID)
 	if err != nil {
 		return respondErr(c, err)
@@ -49,6 +65,7 @@ func (h *FormHandler) GetByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, form)
 }
 
+// Update — PUT /api/forms/:id (owner)
 func (h *FormHandler) Update(c echo.Context) error {
 	userID := middleware.GetUserID(c)
 	var req model.FormRequest
@@ -62,6 +79,7 @@ func (h *FormHandler) Update(c echo.Context) error {
 	return c.JSON(http.StatusOK, form)
 }
 
+// Delete — DELETE /api/forms/:id (owner)
 func (h *FormHandler) Delete(c echo.Context) error {
 	userID := middleware.GetUserID(c)
 	if err := h.svc.Delete(c.Request().Context(), c.Param("id"), userID); err != nil {
@@ -70,6 +88,7 @@ func (h *FormHandler) Delete(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// Duplicate — POST /api/forms/:id/duplicate (owner)
 func (h *FormHandler) Duplicate(c echo.Context) error {
 	userID := middleware.GetUserID(c)
 	form, err := h.svc.Duplicate(c.Request().Context(), c.Param("id"), userID)
@@ -77,23 +96,4 @@ func (h *FormHandler) Duplicate(c echo.Context) error {
 		return respondErr(c, err)
 	}
 	return c.JSON(http.StatusCreated, form)
-}
-
-// ── Shared helpers ─────────────────────────────────────────────────────────────
-
-func respondErr(c echo.Context, err error) error {
-	switch {
-	case errors.Is(err, model.ErrNotFound):
-		return c.JSON(http.StatusNotFound, errResp("not found"))
-	case errors.Is(err, model.ErrForbidden):
-		return c.JSON(http.StatusForbidden, errResp("forbidden"))
-	case errors.Is(err, model.ErrConflict):
-		return c.JSON(http.StatusConflict, errResp("conflict"))
-	default:
-		return c.JSON(http.StatusInternalServerError, errResp("internal error"))
-	}
-}
-
-func errResp(msg string) map[string]string {
-	return map[string]string{"error": msg}
 }

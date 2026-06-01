@@ -15,8 +15,12 @@ func NewFormService(repo *repository.FormRepo) *FormService {
 	return &FormService{repo: repo}
 }
 
-func (s *FormService) List(ctx context.Context, ownerID string) ([]model.Form, error) {
-	return s.repo.ListByOwner(ctx, ownerID)
+func (s *FormService) List(ctx context.Context, ownerID string, filter model.FormFilter) ([]model.Form, error) {
+	return s.repo.ListByOwner(ctx, ownerID, filter)
+}
+
+func (s *FormService) ListPublic(ctx context.Context, query string) ([]model.Form, error) {
+	return s.repo.ListPublic(ctx, query)
 }
 
 func (s *FormService) Create(ctx context.Context, ownerID string, req model.FormRequest) (*model.Form, error) {
@@ -31,7 +35,6 @@ func (s *FormService) GetByID(ctx context.Context, formID, requesterID string) (
 	if err != nil {
 		return nil, err
 	}
-	// Draft forms are only visible to their owner
 	if form.Status == model.FormStatusDraft && form.OwnerID != requesterID {
 		return nil, model.ErrNotFound
 	}

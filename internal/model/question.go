@@ -61,14 +61,13 @@ type Question struct {
 	Position         int             `json:"position"`
 	Options          []AnswerOption  `json:"options"`
 	LinearScale      *LinearScale    `json:"linearScale,omitempty"`
+	RatingMax        *int            `json:"ratingMax,omitempty"`
 	Validation       *ValidationRule `json:"validation,omitempty"`
 	Points           *int            `json:"points,omitempty"`
 	CorrectAnswer    string          `json:"correctAnswer,omitempty"`
 	CorrectAnswers   []string        `json:"correctAnswers,omitempty"`
 }
 
-// QuestionInput is used in create/update requests.
-// ClientID holds the frontend-generated ID used to resolve branching references.
 type QuestionInput struct {
 	ClientID         string          `json:"id"`
 	Type             QuestionType    `json:"type"`
@@ -80,6 +79,7 @@ type QuestionInput struct {
 	BranchingEnabled bool            `json:"branchingEnabled"`
 	Options          []OptionInput   `json:"options"`
 	LinearScale      *LinearScale    `json:"linearScale,omitempty"`
+	RatingMax        *int            `json:"ratingMax,omitempty"`
 	Validation       *ValidationRule `json:"validation,omitempty"`
 	Points           *int            `json:"points,omitempty"`
 	CorrectAnswer    string          `json:"correctAnswer,omitempty"`
