@@ -2,6 +2,7 @@ CREATE TABLE forms (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
+    form_name   TEXT NOT NULL DEFAULT '',
     title       TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL DEFAULT '',
     status      TEXT NOT NULL DEFAULT 'draft',  -- draft | active | closed

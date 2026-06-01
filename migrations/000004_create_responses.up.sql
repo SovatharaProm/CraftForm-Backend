@@ -5,7 +5,9 @@ CREATE TABLE form_responses (
 
     respondent_name  TEXT NOT NULL DEFAULT '',
     respondent_email TEXT NOT NULL DEFAULT '',
-    submitted_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    submitted_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    score            INT,
+    max_score        INT
 );
 
 CREATE INDEX idx_form_responses_form_id ON form_responses(form_id);

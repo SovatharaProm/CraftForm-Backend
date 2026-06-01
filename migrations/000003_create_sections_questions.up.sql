@@ -27,6 +27,7 @@ CREATE TABLE questions (
     -- Only populated for linear-scale / rating
     -- {min, max, minLabel?, maxLabel?}
     linear_scale JSONB,
+    rating_max   INT,
 
     -- Validation rule: {type, min?, max?, pattern?, message?, start?, end?}
     validation JSONB,
