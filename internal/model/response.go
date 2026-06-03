@@ -25,8 +25,9 @@ type QuestionAnswer struct {
 }
 
 type SubmitResponseRequest struct {
-	RespondentName string        `json:"respondentName"`
-	Answers        []AnswerInput `json:"answers"`
+	RespondentName  string        `json:"respondentName"`
+	RespondentEmail string        `json:"respondentEmail"`
+	Answers         []AnswerInput `json:"answers"`
 }
 
 type AnswerInput struct {
@@ -39,6 +40,7 @@ type AnswerInput struct {
 
 type ResponseFilter struct {
 	Query    string
+	Email    string
 	DateFrom *time.Time
 	DateTo   *time.Time
 }

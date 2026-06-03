@@ -28,6 +28,11 @@ func main() {
 	defer pool.Close()
 	log.Println("connected to database")
 
+	if err := db.Migrate(pool, "migrations"); err != nil {
+		log.Fatalf("migration failed: %v", err)
+	}
+	log.Println("migrations applied")
+
 	// ── Dependencies ──────────────────────────────────────────────────────────
 	userRepo     := repository.NewUserRepo(pool)
 	formRepo     := repository.NewFormRepo(pool)

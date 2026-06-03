@@ -1,39 +1,35 @@
-CREATE TABLE forms (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS forms (
+    id          CHAR(36)     NOT NULL PRIMARY KEY,
+    owner_id    CHAR(36)     NOT NULL,
 
-    form_name   TEXT NOT NULL DEFAULT '',
-    title       TEXT NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
-    status      TEXT NOT NULL DEFAULT 'draft',  -- draft | active | closed
+    form_name   VARCHAR(255) NOT NULL DEFAULT '',
+    title       VARCHAR(255) NOT NULL DEFAULT '',
+    description TEXT         NOT NULL,
+    status      VARCHAR(20)  NOT NULL DEFAULT 'draft',
 
-    -- Response window
-    starts_at   TIMESTAMPTZ,
-    expires_at  TIMESTAMPTZ,
+    starts_at   DATETIME(6)  NULL,
+    expires_at  DATETIME(6)  NULL,
 
-    -- Response limits
-    max_responses       INT,
+    max_responses       INT     NULL,
     limit_one_per_user  BOOLEAN NOT NULL DEFAULT FALSE,
 
-    -- Access control
     require_login  BOOLEAN NOT NULL DEFAULT FALSE,
     collect_email  BOOLEAN NOT NULL DEFAULT FALSE,
 
-    -- Behaviour
     shuffle_questions         BOOLEAN NOT NULL DEFAULT FALSE,
     shuffle_options           BOOLEAN NOT NULL DEFAULT FALSE,
     show_individual_responses BOOLEAN NOT NULL DEFAULT TRUE,
     quiz_enabled              BOOLEAN NOT NULL DEFAULT FALSE,
 
-    -- Post-submit
-    thank_you_message TEXT NOT NULL DEFAULT '',
+    thank_you_message TEXT NOT NULL,
 
-    -- Theme (headerImageUrl, accentColor, fontFamily)
-    theme JSONB NOT NULL DEFAULT '{}',
+    theme JSON NOT NULL,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+
+    CONSTRAINT fk_forms_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_forms_owner_id ON forms(owner_id);
-CREATE INDEX idx_forms_status    ON forms(status);
+CREATE INDEX idx_forms_status   ON forms(status);

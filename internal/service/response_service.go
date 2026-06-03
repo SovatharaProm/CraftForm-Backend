@@ -60,9 +60,13 @@ func (s *ResponseService) Submit(ctx context.Context, formID string, userID *str
 
 	// Collect respondent email when form requests it
 	var respondentEmail string
-	if form.CollectEmail && userID != nil {
-		if user, err := s.userRepo.GetByID(ctx, *userID); err == nil {
-			respondentEmail = user.Email
+	if form.CollectEmail {
+		if userID != nil {
+			if user, err := s.userRepo.GetByID(ctx, *userID); err == nil {
+				respondentEmail = user.Email
+			}
+		} else if req.RespondentEmail != "" {
+			respondentEmail = req.RespondentEmail
 		}
 	}
 

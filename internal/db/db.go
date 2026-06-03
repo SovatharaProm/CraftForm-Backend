@@ -1,27 +1,62 @@
 package db
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/sovatharaprom/craftform-backend/internal/config"
 )
 
-func Connect(cfg *config.Config) (*pgxpool.Pool, error) {
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode,
+func Connect(cfg *config.Config) (*sql.DB, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4",
+		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName,
 	)
 
-	pool, err := pgxpool.New(context.Background(), dsn)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create connection pool: %w", err)
+		return nil, fmt.Errorf("unable to open database: %w", err)
 	}
 
-	if err := pool.Ping(context.Background()); err != nil {
+	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("unable to reach database: %w", err)
 	}
 
-	return pool, nil
+	return db, nil
+}
+
+func Migrate(db *sql.DB, migrationsDir string) error {
+	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.up.sql"))
+	if err != nil {
+		return fmt.Errorf("glob migrations: %w", err)
+	}
+	sort.Strings(files)
+
+	for _, f := range files {
+		content, err := os.ReadFile(f)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", f, err)
+		}
+		for _, stmt := range splitSQL(string(content)) {
+			if _, err := db.Exec(stmt); err != nil {
+				return fmt.Errorf("exec %s: %w", filepath.Base(f), err)
+			}
+		}
+	}
+	return nil
+}
+
+func splitSQL(content string) []string {
+	var stmts []string
+	for _, s := range strings.Split(content, ";") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			stmts = append(stmts, s)
+		}
+	}
+	return stmts
 }

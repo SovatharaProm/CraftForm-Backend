@@ -1,57 +1,56 @@
-CREATE TABLE form_sections (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    form_id     UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
-    title       TEXT NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
-    position    INT  NOT NULL DEFAULT 0,
-    -- {type: "next"|"submit"|"section", sectionId?: uuid-string}
-    next_action JSONB NOT NULL DEFAULT '{"type":"next"}',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS form_sections (
+    id          CHAR(36)     NOT NULL PRIMARY KEY,
+    form_id     CHAR(36)     NOT NULL,
+    title       VARCHAR(255) NOT NULL DEFAULT '',
+    description TEXT         NOT NULL,
+    position    INT          NOT NULL DEFAULT 0,
+    next_action JSON         NOT NULL,
+    created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    CONSTRAINT fk_sections_form FOREIGN KEY (form_id) REFERENCES forms(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_form_sections_form_id ON form_sections(form_id);
 
-CREATE TABLE questions (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    section_id  UUID NOT NULL REFERENCES form_sections(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS questions (
+    id          CHAR(36)     NOT NULL PRIMARY KEY,
+    section_id  CHAR(36)     NOT NULL,
 
-    type        TEXT NOT NULL,  -- single|multiple|dropdown|short-text|paragraph|linear-scale|rating|date|time|file-upload
-    title       TEXT NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
+    type        VARCHAR(50)  NOT NULL,
+    title       VARCHAR(255) NOT NULL DEFAULT '',
+    description TEXT         NOT NULL,
     required            BOOLEAN NOT NULL DEFAULT FALSE,
     allow_file_upload   BOOLEAN NOT NULL DEFAULT FALSE,
     allow_other         BOOLEAN NOT NULL DEFAULT FALSE,
     branching_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
-    position    INT NOT NULL DEFAULT 0,
+    position    INT     NOT NULL DEFAULT 0,
 
-    -- Only populated for linear-scale / rating
-    -- {min, max, minLabel?, maxLabel?}
-    linear_scale JSONB,
-    rating_max   INT,
+    linear_scale JSON NULL,
+    rating_max   INT  NULL,
+    validation   JSON NULL,
 
-    -- Validation rule: {type, min?, max?, pattern?, message?, start?, end?}
-    validation JSONB,
+    points          INT          NULL,
+    correct_answer  VARCHAR(255) NOT NULL DEFAULT '',
+    correct_answers JSON         NULL,
 
-    -- Quiz fields
-    points          INT,
-    correct_answer  TEXT NOT NULL DEFAULT '',
-    correct_answers JSONB,   -- []string for multiple-answer quiz
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    CONSTRAINT fk_questions_section FOREIGN KEY (section_id) REFERENCES form_sections(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_questions_section_id ON questions(section_id);
 
--- Only rows for question types: single, multiple, dropdown
-CREATE TABLE question_options (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-    text        TEXT NOT NULL DEFAULT '',
-    position    INT  NOT NULL DEFAULT 0,
+CREATE TABLE IF NOT EXISTS question_options (
+    id          CHAR(36)     NOT NULL PRIMARY KEY,
+    question_id CHAR(36)     NOT NULL,
+    text        VARCHAR(255) NOT NULL DEFAULT '',
+    position    INT          NOT NULL DEFAULT 0,
 
-    -- Branching: which section to jump to when this option is selected
-    go_to_type        TEXT,   -- "next" | "submit" | "section"
-    go_to_section_id  UUID REFERENCES form_sections(id) ON DELETE SET NULL
+    go_to_type        VARCHAR(20) NULL,
+    go_to_section_id  CHAR(36)    NULL,
+
+    CONSTRAINT fk_options_question FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_options_section  FOREIGN KEY (go_to_section_id) REFERENCES form_sections(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_question_options_question_id ON question_options(question_id);

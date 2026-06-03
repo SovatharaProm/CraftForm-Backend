@@ -1,0 +1,355 @@
+{
+  "info": {
+    "name": "CraftForm API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "formId",
+      "value": ""
+    },
+    {
+      "key": "responseId",
+      "value": ""
+    },
+    {
+      "key": "_questions",
+      "value": "[]"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Redirect to Google",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/google"
+          }
+        },
+        {
+          "name": "Google Callback",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/google/callback?code=AUTH_CODE_HERE",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "google", "callback"],
+              "query": [{ "key": "code", "value": "AUTH_CODE_HERE" }]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/logout",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Forms",
+      "item": [
+        {
+          "name": "List My Forms",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/forms?q=&status=&sort=newest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms"],
+              "query": [
+                { "key": "q", "value": "", "description": "Search by title" },
+                { "key": "status", "value": "", "description": "draft | active | closed" },
+                { "key": "sort", "value": "newest", "description": "newest | oldest | most_responses | title" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "List Public Forms",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/forms/public?q=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms", "public"],
+              "query": [
+                { "key": "q", "value": "", "description": "Search by title" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Form by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "var questions = [];",
+                  "(json.sections || []).forEach(function(section) {",
+                  "  (section.questions || []).forEach(function(q) {",
+                  "    questions.push(q);",
+                  "  });",
+                  "});",
+                  "pm.collectionVariables.set('_questions', JSON.stringify(questions));",
+                  "console.log('Extracted ' + questions.length + ' question(s) into _questions variable.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/forms/{{formId}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}", "description": "Optional" }
+            ]
+          }
+        },
+        {
+          "name": "Create Form",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.id) { pm.collectionVariables.set('formId', json.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/forms",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"formName\": \"My Form\",\n  \"title\": \"Customer Satisfaction Survey\",\n  \"description\": \"Tell us how we did.\",\n  \"status\": \"draft\",\n  \"limitOnePerUser\": false,\n  \"requireLogin\": false,\n  \"collectEmail\": false,\n  \"shuffleQuestions\": false,\n  \"shuffleOptions\": false,\n  \"showIndividualResponses\": true,\n  \"quizEnabled\": false,\n  \"thankYouMessage\": \"Thanks for your response!\",\n  \"theme\": {\n    \"accentColor\": \"#6366f1\",\n    \"fontFamily\": \"Inter\"\n  },\n  \"sections\": [\n    {\n      \"id\": \"section-1\",\n      \"title\": \"Section 1\",\n      \"description\": \"\",\n      \"questions\": [\n        {\n          \"id\": \"q-1\",\n          \"type\": \"short-text\",\n          \"title\": \"What is your name?\",\n          \"description\": \"\",\n          \"required\": true,\n          \"allowFileUpload\": false,\n          \"allowOther\": false,\n          \"branchingEnabled\": false,\n          \"options\": []\n        },\n        {\n          \"id\": \"q-2\",\n          \"type\": \"single\",\n          \"title\": \"How satisfied are you?\",\n          \"description\": \"\",\n          \"required\": true,\n          \"allowFileUpload\": false,\n          \"allowOther\": false,\n          \"branchingEnabled\": false,\n          \"options\": [\n            { \"text\": \"Very satisfied\" },\n            { \"text\": \"Satisfied\" },\n            { \"text\": \"Neutral\" },\n            { \"text\": \"Dissatisfied\" }\n          ]\n        },\n        {\n          \"id\": \"q-3\",\n          \"type\": \"rating\",\n          \"title\": \"Rate us out of 5\",\n          \"description\": \"\",\n          \"required\": false,\n          \"allowFileUpload\": false,\n          \"allowOther\": false,\n          \"branchingEnabled\": false,\n          \"options\": [],\n          \"ratingMax\": 5\n        }\n      ]\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Form",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/forms/{{formId}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"formName\": \"Updated Form Name\",\n  \"title\": \"Updated Title\",\n  \"description\": \"Updated description.\",\n  \"status\": \"active\",\n  \"limitOnePerUser\": false,\n  \"requireLogin\": false,\n  \"collectEmail\": true,\n  \"shuffleQuestions\": false,\n  \"shuffleOptions\": false,\n  \"showIndividualResponses\": true,\n  \"quizEnabled\": false,\n  \"thankYouMessage\": \"Thank you!\",\n  \"theme\": {\n    \"accentColor\": \"#6366f1\",\n    \"fontFamily\": \"Inter\"\n  },\n  \"sections\": [\n    {\n      \"id\": \"section-1\",\n      \"title\": \"Section 1\",\n      \"description\": \"\",\n      \"questions\": [\n        {\n          \"id\": \"q-1\",\n          \"type\": \"short-text\",\n          \"title\": \"What is your name?\",\n          \"description\": \"\",\n          \"required\": true,\n          \"allowFileUpload\": false,\n          \"allowOther\": false,\n          \"branchingEnabled\": false,\n          \"options\": []\n        }\n      ]\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Form",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/forms/{{formId}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Duplicate Form",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/forms/{{formId}}/duplicate",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Responses",
+      "item": [
+        {
+          "name": "Submit Response",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var questions = JSON.parse(pm.collectionVariables.get('_questions') || '[]');",
+                  "if (questions.length === 0) {",
+                  "  console.warn('No questions found. Run \"Get Form by ID\" first to populate _questions.');",
+                  "}",
+                  "var answers = questions.map(function(q) {",
+                  "  var a = { questionId: q.id };",
+                  "  if (q.type === 'single' || q.type === 'dropdown') {",
+                  "    a.value = q.options && q.options.length ? q.options[0].id : '';",
+                  "  } else if (q.type === 'multiple') {",
+                  "    a.valueArray = q.options && q.options.length ? [q.options[0].id] : [];",
+                  "  } else if (q.type === 'rating') {",
+                  "    a.value = String(q.ratingMax || 5);",
+                  "  } else if (q.type === 'linear-scale') {",
+                  "    a.value = String(q.linearScale ? q.linearScale.min : 1);",
+                  "  } else if (q.type === 'date') {",
+                  "    a.value = '2024-01-15';",
+                  "  } else if (q.type === 'time') {",
+                  "    a.value = '09:00';",
+                  "  } else {",
+                  "    a.value = 'Sample answer';",
+                  "  }",
+                  "  return a;",
+                  "});",
+                  "pm.request.body.raw = JSON.stringify({",
+                  "  respondentName: 'John Doe',",
+                  "  respondentEmail: 'john@example.com',",
+                  "  answers: answers",
+                  "}, null, 2);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.id) { pm.collectionVariables.set('responseId', json.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/forms/{{formId}}/responses",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}", "description": "Optional" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "List Responses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/forms/{{formId}}/responses?q=&email=&from=&to=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms", "{{formId}}", "responses"],
+              "query": [
+                { "key": "q", "value": "", "description": "Search by respondent name" },
+                { "key": "email", "value": "", "description": "Filter by respondent email" },
+                { "key": "from", "value": "", "description": "RFC3339 date, e.g. 2024-01-01T00:00:00Z" },
+                { "key": "to", "value": "", "description": "RFC3339 date, e.g. 2024-12-31T23:59:59Z" }
+              ]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Response by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/forms/{{formId}}/responses/{{responseId}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Delete Response",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/forms/{{formId}}/responses/{{responseId}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Analytics (Summary)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/forms/{{formId}}/responses/summary",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/upload",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

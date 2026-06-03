@@ -38,6 +38,7 @@ func (h *ResponseHandler) List(c echo.Context) error {
 	userID := middleware.GetUserID(c)
 	filter := model.ResponseFilter{
 		Query:    c.QueryParam("q"),
+		Email:    c.QueryParam("email"),
 		DateFrom: parseTime(c.QueryParam("from")),
 		DateTo:   parseTime(c.QueryParam("to")),
 	}

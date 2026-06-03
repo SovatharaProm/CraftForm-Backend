@@ -2,37 +2,36 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/google/uuid"
 	"github.com/sovatharaprom/craftform-backend/internal/model"
 )
 
 type FormRepo struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
-func NewFormRepo(pool *pgxpool.Pool) *FormRepo {
-	return &FormRepo{pool: pool}
+func NewFormRepo(db *sql.DB) *FormRepo {
+	return &FormRepo{db: db}
 }
 
 // ── Public methods ────────────────────────────────────────────────────────────
 
 func (r *FormRepo) ListByOwner(ctx context.Context, ownerID string, filter model.FormFilter) ([]model.Form, error) {
+	where := []string{"f.owner_id = ?"}
 	args := []any{ownerID}
-	where := []string{"f.owner_id = $1::uuid"}
 
 	if filter.Query != "" {
+		where = append(where, "LOWER(f.title) LIKE ?")
 		args = append(args, "%"+strings.ToLower(filter.Query)+"%")
-		where = append(where, fmt.Sprintf("LOWER(f.title) LIKE $%d", len(args)))
 	}
 	if filter.Status != "" {
+		where = append(where, "f.status = ?")
 		args = append(args, filter.Status)
-		where = append(where, fmt.Sprintf("f.status = $%d", len(args)))
 	}
 
 	orderBy := "f.created_at DESC"
@@ -54,7 +53,7 @@ func (r *FormRepo) ListByOwner(ctx context.Context, ownerID string, filter model
 		ORDER BY %s
 	`, formCols("f"), strings.Join(where, " AND "), orderBy)
 
-	rows, err := r.pool.Query(ctx, q, args...)
+	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -79,15 +78,15 @@ func (r *FormRepo) ListByOwner(ctx context.Context, ownerID string, filter model
 }
 
 func (r *FormRepo) ListPublic(ctx context.Context, query string) ([]model.Form, error) {
-	args := []any{}
 	where := []string{
 		"f.status = 'active'",
 		"(f.expires_at IS NULL OR f.expires_at > NOW())",
 	}
+	args := []any{}
 
 	if query != "" {
+		where = append(where, "LOWER(f.title) LIKE ?")
 		args = append(args, "%"+strings.ToLower(query)+"%")
-		where = append(where, fmt.Sprintf("LOWER(f.title) LIKE $%d", len(args)))
 	}
 
 	q := fmt.Sprintf(`
@@ -99,7 +98,7 @@ func (r *FormRepo) ListPublic(ctx context.Context, query string) ([]model.Form, 
 		ORDER BY f.created_at DESC
 	`, formCols("f"), strings.Join(where, " AND "))
 
-	rows, err := r.pool.Query(ctx, q, args...)
+	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,13 +123,13 @@ func (r *FormRepo) ListPublic(ctx context.Context, query string) ([]model.Form, 
 }
 
 func (r *FormRepo) GetByID(ctx context.Context, id string) (*model.Form, error) {
-	row := r.pool.QueryRow(ctx, fmt.Sprintf(`
-		SELECT %s FROM forms f WHERE f.id = $1::uuid
+	row := r.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT %s FROM forms f WHERE f.id = ?
 	`, formCols("f")), id)
 
 	f, err := scanForm(row)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			return nil, model.ErrNotFound
 		}
 		return nil, err
@@ -142,29 +141,28 @@ func (r *FormRepo) GetByID(ctx context.Context, id string) (*model.Form, error) 
 }
 
 func (r *FormRepo) Create(ctx context.Context, ownerID string, req model.FormRequest) (*model.Form, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
 	themeJSON, _ := json.Marshal(req.Theme)
+	formID := uuid.New().String()
 
-	var formID string
-	err = tx.QueryRow(ctx, `
-		INSERT INTO forms (owner_id, form_name, title, description, status,
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO forms (id, owner_id, form_name, title, description, status,
 		    starts_at, expires_at, max_responses,
 		    limit_one_per_user, require_login, collect_email,
 		    shuffle_questions, shuffle_options, show_individual_responses, quiz_enabled,
 		    thank_you_message, theme)
-		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-		RETURNING id::text
-	`, ownerID, req.FormName, req.Title, req.Description, string(req.Status),
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	`, formID, ownerID, req.FormName, req.Title, req.Description, string(req.Status),
 		req.StartsAt, req.ExpiresAt, req.MaxResponses,
 		req.LimitOnePerUser, req.RequireLogin, req.CollectEmail,
 		req.ShuffleQuestions, req.ShuffleOptions, req.ShowIndividualResponses, req.QuizEnabled,
 		req.ThankYouMessage, themeJSON,
-	).Scan(&formID)
+	)
 	if err != nil {
 		return nil, fmt.Errorf("insert form: %w", err)
 	}
@@ -172,29 +170,29 @@ func (r *FormRepo) Create(ctx context.Context, ownerID string, req model.FormReq
 	if err := insertSections(ctx, tx, formID, req.Sections); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 	return r.GetByID(ctx, formID)
 }
 
 func (r *FormRepo) Update(ctx context.Context, id string, req model.FormRequest) (*model.Form, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
 	themeJSON, _ := json.Marshal(req.Theme)
 
-	_, err = tx.Exec(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		UPDATE forms SET
-		    form_name=$1, title=$2, description=$3, status=$4,
-		    starts_at=$5, expires_at=$6, max_responses=$7,
-		    limit_one_per_user=$8, require_login=$9, collect_email=$10,
-		    shuffle_questions=$11, shuffle_options=$12, show_individual_responses=$13, quiz_enabled=$14,
-		    thank_you_message=$15, theme=$16, updated_at=NOW()
-		WHERE id=$17::uuid
+		    form_name=?, title=?, description=?, status=?,
+		    starts_at=?, expires_at=?, max_responses=?,
+		    limit_one_per_user=?, require_login=?, collect_email=?,
+		    shuffle_questions=?, shuffle_options=?, show_individual_responses=?, quiz_enabled=?,
+		    thank_you_message=?, theme=?, updated_at=NOW(6)
+		WHERE id=?
 	`, req.FormName, req.Title, req.Description, string(req.Status),
 		req.StartsAt, req.ExpiresAt, req.MaxResponses,
 		req.LimitOnePerUser, req.RequireLogin, req.CollectEmail,
@@ -205,20 +203,20 @@ func (r *FormRepo) Update(ctx context.Context, id string, req model.FormRequest)
 		return nil, fmt.Errorf("update form: %w", err)
 	}
 
-	if _, err = tx.Exec(ctx, `DELETE FROM form_sections WHERE form_id = $1::uuid`, id); err != nil {
+	if _, err = tx.ExecContext(ctx, `DELETE FROM form_sections WHERE form_id = ?`, id); err != nil {
 		return nil, fmt.Errorf("delete sections: %w", err)
 	}
 	if err := insertSections(ctx, tx, id, req.Sections); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 	return r.GetByID(ctx, id)
 }
 
 func (r *FormRepo) Delete(ctx context.Context, id string) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM forms WHERE id = $1::uuid`, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM forms WHERE id = ?`, id)
 	return err
 }
 
@@ -247,9 +245,9 @@ func (r *FormRepo) Duplicate(ctx context.Context, id, ownerID string) (*model.Fo
 	return r.Create(ctx, ownerID, req)
 }
 
-// ── Section / question insertion (shared by Create and Update) ────────────────
+// ── Section / question insertion ──────────────────────────────────────────────
 
-func insertSections(ctx context.Context, tx pgx.Tx, formID string, sections []model.SectionInput) error {
+func insertSections(ctx context.Context, tx *sql.Tx, formID string, sections []model.SectionInput) error {
 	type entry struct {
 		serverID string
 		input    model.SectionInput
@@ -258,12 +256,11 @@ func insertSections(ctx context.Context, tx pgx.Tx, formID string, sections []mo
 	idMap := make(map[string]string)
 
 	for i, sec := range sections {
-		var sID string
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO form_sections (form_id, title, description, position, next_action)
-			VALUES ($1::uuid, $2, $3, $4, '{"type":"next"}'::jsonb)
-			RETURNING id::text
-		`, formID, sec.Title, sec.Description, i).Scan(&sID); err != nil {
+		sID := uuid.New().String()
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO form_sections (id, form_id, title, description, position, next_action)
+			VALUES (?, ?, ?, ?, ?, '{"type":"next"}')
+		`, sID, formID, sec.Title, sec.Description, i); err != nil {
 			return fmt.Errorf("insert section: %w", err)
 		}
 		entries[i] = entry{serverID: sID, input: sec}
@@ -275,8 +272,8 @@ func insertSections(ctx context.Context, tx pgx.Tx, formID string, sections []mo
 	for _, e := range entries {
 		if e.input.NextAction != nil {
 			naJSON, _ := json.Marshal(resolveAction(e.input.NextAction, idMap))
-			if _, err := tx.Exec(ctx, `
-				UPDATE form_sections SET next_action = $1 WHERE id = $2::uuid
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE form_sections SET next_action = ? WHERE id = ?
 			`, naJSON, e.serverID); err != nil {
 				return fmt.Errorf("update next_action: %w", err)
 			}
@@ -296,30 +293,29 @@ func insertSections(ctx context.Context, tx pgx.Tx, formID string, sections []mo
 	return nil
 }
 
-func insertQuestion(ctx context.Context, tx pgx.Tx, sectionID string, pos int, q model.QuestionInput) (string, error) {
+func insertQuestion(ctx context.Context, tx *sql.Tx, sectionID string, pos int, q model.QuestionInput) (string, error) {
 	lsJSON, _ := json.Marshal(q.LinearScale)
 	valJSON, _ := json.Marshal(q.Validation)
 	caJSON, _ := json.Marshal(q.CorrectAnswers)
 
-	var qID string
-	err := tx.QueryRow(ctx, `
+	qID := uuid.New().String()
+	_, err := tx.ExecContext(ctx, `
 		INSERT INTO questions
-		    (section_id, type, title, description, required,
+		    (id, section_id, type, title, description, required,
 		     allow_file_upload, allow_other, branching_enabled, position,
 		     linear_scale, validation, points, correct_answer, correct_answers, rating_max)
-		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-		RETURNING id::text
-	`, sectionID, string(q.Type), q.Title, q.Description, q.Required,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	`, qID, sectionID, string(q.Type), q.Title, q.Description, q.Required,
 		q.AllowFileUpload, q.AllowOther, q.BranchingEnabled, pos,
 		nullJSON(lsJSON), nullJSON(valJSON), q.Points, q.CorrectAnswer, nullJSON(caJSON), q.RatingMax,
-	).Scan(&qID)
+	)
 	if err != nil {
 		return "", fmt.Errorf("insert question: %w", err)
 	}
 	return qID, nil
 }
 
-func insertOptions(ctx context.Context, tx pgx.Tx, questionID string, opts []model.OptionInput, idMap map[string]string) error {
+func insertOptions(ctx context.Context, tx *sql.Tx, questionID string, opts []model.OptionInput, idMap map[string]string) error {
 	for i, opt := range opts {
 		var goToType, goToSectionID *string
 		if opt.GoTo != nil {
@@ -332,10 +328,11 @@ func insertOptions(ctx context.Context, tx pgx.Tx, questionID string, opts []mod
 				}
 			}
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO question_options (question_id, text, position, go_to_type, go_to_section_id)
-			VALUES ($1::uuid, $2, $3, $4, $5::uuid)
-		`, questionID, opt.Text, i, goToType, goToSectionID); err != nil {
+		optID := uuid.New().String()
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO question_options (id, question_id, text, position, go_to_type, go_to_section_id)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, optID, questionID, opt.Text, i, goToType, goToSectionID); err != nil {
 			return fmt.Errorf("insert option: %w", err)
 		}
 	}
@@ -345,9 +342,9 @@ func insertOptions(ctx context.Context, tx pgx.Tx, questionID string, opts []mod
 // ── Section / question loading ────────────────────────────────────────────────
 
 func (r *FormRepo) loadSections(ctx context.Context, f *model.Form) error {
-	sRows, err := r.pool.Query(ctx, `
-		SELECT id::text, title, description, position, next_action
-		FROM form_sections WHERE form_id = $1::uuid ORDER BY position
+	sRows, err := r.db.QueryContext(ctx, `
+		SELECT id, title, description, position, next_action
+		FROM form_sections WHERE form_id = ? ORDER BY position
 	`, f.ID)
 	if err != nil {
 		return err
@@ -380,12 +377,12 @@ func (r *FormRepo) loadSections(ctx context.Context, f *model.Form) error {
 		return nil
 	}
 
-	qRows, err := r.pool.Query(ctx, `
-		SELECT id::text, section_id::text, type, title, description,
+	qRows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT id, section_id, type, title, description,
 		       required, allow_file_upload, allow_other, branching_enabled, position,
 		       linear_scale, validation, points, correct_answer, correct_answers, rating_max
-		FROM questions WHERE section_id::text = ANY($1) ORDER BY position
-	`, sectionIDs)
+		FROM questions WHERE section_id IN %s ORDER BY position
+	`, inClause(len(sectionIDs))), stringsToAny(sectionIDs)...)
 	if err != nil {
 		return err
 	}
@@ -429,10 +426,10 @@ func (r *FormRepo) loadSections(ctx context.Context, f *model.Form) error {
 		return nil
 	}
 
-	oRows, err := r.pool.Query(ctx, `
-		SELECT id::text, question_id::text, text, position, go_to_type, go_to_section_id::text
-		FROM question_options WHERE question_id::text = ANY($1) ORDER BY position
-	`, questionIDs)
+	oRows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT id, question_id, text, position, go_to_type, go_to_section_id
+		FROM question_options WHERE question_id IN %s ORDER BY position
+	`, inClause(len(questionIDs))), stringsToAny(questionIDs)...)
 	if err != nil {
 		return err
 	}
@@ -462,11 +459,10 @@ func (r *FormRepo) loadSections(ctx context.Context, f *model.Form) error {
 
 // ── Scan helpers ──────────────────────────────────────────────────────────────
 
-// formCols returns the SELECT column list for the forms table aliased as `alias`.
 func formCols(alias string) string {
 	a := alias + "."
 	return fmt.Sprintf(`
-		%sid::text, %sowner_id::text, %sform_name, %stitle, %sdescription, %sstatus,
+		%sid, %sowner_id, %sform_name, %stitle, %sdescription, %sstatus,
 		%sstarts_at, %sexpires_at, %smax_responses,
 		%slimit_one_per_user, %srequire_login, %scollect_email,
 		%sshuffle_questions, %sshuffle_options, %sshow_individual_responses, %squiz_enabled,
@@ -476,7 +472,6 @@ func formCols(alias string) string {
 
 type scanner interface{ Scan(dest ...any) error }
 
-// scanForm scans a form row without response_count.
 func scanForm(row scanner) (*model.Form, error) {
 	var f model.Form
 	var themeJSON []byte
@@ -496,7 +491,6 @@ func scanForm(row scanner) (*model.Form, error) {
 	return &f, nil
 }
 
-// scanFormWithCount scans a form row that includes response_count as the last column.
 func scanFormWithCount(row scanner) (*model.Form, error) {
 	var f model.Form
 	var themeJSON []byte
@@ -518,6 +512,21 @@ func scanFormWithCount(row scanner) (*model.Form, error) {
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
+
+func inClause(n int) string {
+	if n == 0 {
+		return "(NULL)"
+	}
+	return "(" + strings.Repeat("?,", n-1) + "?)"
+}
+
+func stringsToAny(ss []string) []any {
+	out := make([]any, len(ss))
+	for i, s := range ss {
+		out[i] = s
+	}
+	return out
+}
 
 func resolveAction(a *model.BranchAction, idMap map[string]string) *model.BranchAction {
 	if a == nil {
